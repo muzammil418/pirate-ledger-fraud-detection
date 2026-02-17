@@ -1,0 +1,87 @@
+# Pirate Treasure Ledger — Sample Input
+# Lines starting with # are comments and should be ignored.
+
+TXN 1001 1726-01-01 "Dock fees at Skull Harbor"
+ENTRY TREASURE C 20000
+ENTRY SUPPLIES D 20000
+END
+
+TXN 1002 1726-01-02 "Sell spices to a merchant"
+ENTRY TREASURE D 150000
+ENTRY TRADE_GOODS C 150000
+END
+
+# Suspicious (Rule A): many tiny micro-adjustments, but still balanced
+TXN 1003 1726-01-03 "rounding adjust after counting copper"
+ENTRY TREASURE D 1
+ENTRY TREASURE D 2
+ENTRY TREASURE D 3
+ENTRY TREASURE D 4
+ENTRY CREW_PAY C 10
+END
+
+# Invalid: ENTRY before any TXN
+ENTRY TREASURE D 10
+
+# Invalid: missing END (program should detect unclosed transaction)
+TXN 1004 1726-01-04 "Lost crate in storm"
+ENTRY SUPPLIES D 5000
+ENTRY TREASURE C 5000
+
+# Valid: next transaction starts; your program should recover from the missing END above
+TXN 1005 1726-01-05 "Split loot after raid"
+ENTRY TREASURE D 50000
+ENTRY CREW_PAY C 50000
+END
+
+# Invalid: unbalanced (debits != credits)
+TXN 1006 1726-01-06 "Mysterious fee charged by harbor master"
+ENTRY TREASURE C 1000
+ENTRY SUPPLIES D 900
+END
+
+# Invalid: bad account code (lowercase not allowed)
+TXN 1007 1726-01-07 "Buy rope"
+ENTRY supplies D 1200
+ENTRY TREASURE C 1200
+END
+
+# Suspicious (Rule B candidate): memo contains 'fee' and large amount, still balanced
+TXN 1008 1726-01-08 "Harbor fee settlement (adjust)"
+ENTRY TREASURE C 250000
+ENTRY SUPPLIES D 250000
+END
+
+# Invalid: duplicate txn_id (1008 already used)
+TXN 1008 1726-01-09 "Duplicate id test"
+ENTRY TREASURE D 1
+ENTRY CREW_PAY C 1
+END
+
+# Invalid: date format wrong (basic validation should reject)
+TXN 1009 1726/01/10 "Bad date format"
+ENTRY TREASURE D 100
+ENTRY CREW_PAY C 100
+END
+
+# Invalid: unknown line type
+BOOM 1010 1726-01-11 "Unknown line type"
+ENTRY TREASURE D 10
+ENTRY CREW_PAY C 10
+END
+
+# Valid: multiple entries per side, balanced
+TXN 1011 1726-01-12 "Resupply and pay lookout"
+ENTRY SUPPLIES D 3000
+ENTRY CREW_PAY D 2000
+ENTRY TREASURE C 5000
+END
+
+# Trap: END without an active transaction
+END
+
+# Valid: zero amount entries are allowed by spec (still must balance)
+TXN 1012 1726-01-13 "Paperwork-only transfer (no coins moved)"
+ENTRY TREASURE D 0
+ENTRY TREASURE C 0
+END
