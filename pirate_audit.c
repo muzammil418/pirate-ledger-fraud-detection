@@ -4,6 +4,7 @@
 
 #define MAX_ENTRIES 100
 #define MAX_TXNS 500
+#define MAX_ACCOUNTS 500
 
 typedef struct {
     char code[17];
@@ -31,6 +32,43 @@ typedef struct {
 
 Transaction transactions[MAX_TXNS];
 int txn_count = 0;
+
+Account accounts[MAX_ACCOUNTS];
+int acc_count = 0;
+
+void update_balance(Transaction *cur) {
+
+    for (int i = 0; i < cur->entry_count; i++) {
+
+        char *code = cur->account[i];
+        char type = cur->type[i];
+        long long amount = cur->amount[i];
+
+        int found = -1;
+
+        for (int j = 0; j < acc_count; j++) {
+            if (strcmp(accounts[j].code, code) == 0) {
+                found = j;
+                break;
+            }
+        }
+
+        if (found == -1 && acc_count < MAX_ACCOUNTS) {
+            found = acc_count++;
+            strcpy(accounts[found].code, code);
+            accounts[found].balance_cents = 0;
+        }
+
+        if (found != -1) {
+            if (type == 'D'){
+                accounts[found].balance_cents += amount;
+			}
+            else {
+                accounts[found].balance_cents -= amount;
+			}
+        }
+    }
+}
 
 void process_ledger(FILE *in, FILE *out) {
 
@@ -146,6 +184,7 @@ void process_ledger(FILE *in, FILE *out) {
             else {
                 if (txn_count < MAX_TXNS) {
                     transactions[txn_count++] = cur;
+                    update_balance(&cur);   // BALANCE UPDATE HERE
                 }
             }
 
