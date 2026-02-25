@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_ENTRIES 100
 #define MAX_TXNS 500
@@ -36,6 +37,54 @@ int txn_count = 0;
 Account accounts[MAX_ACCOUNTS];
 int acc_count = 0;
 
+/* ===================== SUSPICIOUS FUNCTIONS ===================== */
+
+int contains_keyword(const char *memo) {
+
+    char lower[1000];
+    int i;
+
+    for (i = 0; memo[i] && i < 999; i++) {
+        lower[i] = tolower(memo[i]);
+    }
+    lower[i] = '\0';
+
+    if (strstr(lower, "fee") ||
+        strstr(lower, "adjust") ||
+        strstr(lower, "round")) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int suspicious_check(Transaction *cur) {
+
+    int micro_count = 0;
+
+    // Rule A: Micro-adjustment flood
+    for (int i = 0; i < cur->entry_count; i++) {
+        if (cur->amount[i] >= 1 && cur->amount[i] <= 9) {
+            micro_count++;
+        }
+    }
+
+    if (micro_count >= 3) {
+        return 1;
+    }
+
+    // Rule B: Rounding drift
+    if (contains_keyword(cur->memo) &&
+        cur->debit_sum == cur->credit_sum &&
+        cur->debit_sum >= 100000) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/* ===================== BALANCE UPDATE ===================== */
+
 void update_balance(Transaction *cur) {
 
     for (int i = 0; i < cur->entry_count; i++) {
@@ -60,15 +109,15 @@ void update_balance(Transaction *cur) {
         }
 
         if (found != -1) {
-            if (type == 'D'){
+            if (type == 'D')
                 accounts[found].balance_cents += amount;
-			}
-            else {
+            else
                 accounts[found].balance_cents -= amount;
-			}
         }
     }
 }
+
+/* ===================== PROCESS LEDGER ===================== */
 
 void process_ledger(FILE *in, FILE *out) {
 
@@ -184,7 +233,12 @@ void process_ledger(FILE *in, FILE *out) {
             else {
                 if (txn_count < MAX_TXNS) {
                     transactions[txn_count++] = cur;
-                    update_balance(&cur);   // BALANCE UPDATE HERE
+                    update_balance(&cur);
+
+                    if (suspicious_check(&cur)) {
+                        fprintf(out, "Suspicious transaction at line %d (TXN %d)\n",
+                                cur.start_line, cur.tx_id);
+                    }
                 }
             }
 
@@ -198,6 +252,8 @@ void process_ledger(FILE *in, FILE *out) {
                 cur.start_line);
     }
 }
+
+/* ===================== MAIN ===================== */
 
 int main(int argc, char **argv) {
 
