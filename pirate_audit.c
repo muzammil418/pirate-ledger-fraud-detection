@@ -37,6 +37,11 @@ int txn_count = 0;
 Account accounts[MAX_ACCOUNTS];
 int acc_count = 0;
 
+int total_txn = 0;
+int valid_txn = 0;
+int invalid_txn = 0;
+int suspicious_txn = 0;
+
 /* ===================== SUSPICIOUS FUNCTIONS ===================== */
 
 int contains_keyword(const char *memo) {
@@ -132,7 +137,9 @@ void process_ledger(FILE *in, FILE *out) {
 
         // ---------------- TXN ----------------
         if (strncmp(line, "TXN", 3) == 0) {
-
+			
+			total_txn++;
+			
             if (in_txn) {
                 fprintf(out, "Error: missing END before TXN at line %d\n", line_no);
             }
@@ -144,6 +151,7 @@ void process_ledger(FILE *in, FILE *out) {
             if (sscanf(line, "TXN %d %10s", &cur.tx_id, cur.date) != 2) {
                 fprintf(out, "Error: invalid TXN format at line %d\n", line_no);
                 in_txn = 0;
+				invalid_txn++;
                 continue;
             }
 
@@ -224,13 +232,18 @@ void process_ledger(FILE *in, FILE *out) {
 
             if (!cur.has_any_debit || !cur.has_any_credit) {
                 fprintf(out, "Error: missing debit or credit at line %d\n",
-                        cur.start_line);
+                        cur.start_line); 
+						invalid_txn++;
             }
             else if (cur.debit_sum != cur.credit_sum) {
                 fprintf(out, "Error: unbalanced transaction at line %d\n",
                         cur.start_line);
+						invalid_txn++;
             }
             else {
+				
+				valid_txn++;
+				
                 if (txn_count < MAX_TXNS) {
                     transactions[txn_count++] = cur;
                     update_balance(&cur);
@@ -238,6 +251,7 @@ void process_ledger(FILE *in, FILE *out) {
                     if (suspicious_check(&cur)) {
                         fprintf(out, "Suspicious transaction at line %d (TXN %d)\n",
                                 cur.start_line, cur.tx_id);
+								suspicious_txn++;
                     }
                 }
             }
@@ -250,6 +264,40 @@ void process_ledger(FILE *in, FILE *out) {
     if (in_txn) {
         fprintf(out, "Error: missing END at EOF (started at line %d)\n",
                 cur.start_line);
+				invalid_txn++;
+    }
+}
+
+void print_summary(FILE *out) {
+
+    fprintf(out, "=== SUMMARY ===\n");
+    fprintf(out, "Total Transactions: %d\n", total_txn);
+    fprintf(out, "Valid Transactions: %d\n", valid_txn);
+    fprintf(out, "Invalid Transactions: %d\n", invalid_txn);
+    fprintf(out, "Suspicious Transactions: %d\n\n", suspicious_txn);
+}
+
+void print_trial_balance(FILE *out) {
+
+    long long grand_total = 0;
+
+    fprintf(out, "\n=== TRIAL BALANCE ===\n");
+    fprintf(out, "ACCOUNT              BALANCE\n");
+    fprintf(out, "--------------------------------\n");
+
+    for (int i = 0; i < acc_count; i++) {
+        fprintf(out, "%-20s %lld\n",
+                accounts[i].code,
+                accounts[i].balance_cents);
+
+        grand_total += accounts[i].balance_cents;
+    }
+
+    fprintf(out, "--------------------------------\n");
+    fprintf(out, "GRAND TOTAL: %lld\n", grand_total);
+
+    if (grand_total != 0) {
+        fprintf(out, "WARNING: trial balance not zero (system imbalance)\n");
     }
 }
 
@@ -276,7 +324,9 @@ int main(int argc, char **argv) {
     }
 
     process_ledger(in, out);
-
+	print_summary(out);
+	print_trial_balance(out);
+	
     fclose(in);
     fclose(out);
 
